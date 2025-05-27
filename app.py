@@ -109,5 +109,8 @@ def update_variant_price(variant_id, new_price):
     data = {"variant": {"id": variant_id, "price": new_price}}
     requests.put(url, headers=HEADERS, json=data)
 
+import os
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))  # Use Render's PORT or default to 5000
+    app.run(host="0.0.0.0", port=port)
