@@ -1,0 +1,20 @@
+{
+    "bracelet": {
+        "Forsat S": 0.0,
+        "Forsat M": 190.0,
+        "Forsat L": 290.0,
+        "Gourmette S": 290.0,
+        "Chopard S": 390.0,
+        "Gourmette M": 550.0,
+        "Chopard M": 750.0
+    },
+    "collier": {
+        "Forsat S": 0.0,
+        "Forsat M": 290.0,
+        "Forsat L": 690.0,
+        "Gourmette S": 690.0,
+        "Chopard S": 890.0,
+        "Gourmette M": 1190.0,
+        "Chopard M": 1690.0
+    }
+}

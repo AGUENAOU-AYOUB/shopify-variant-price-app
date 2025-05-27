@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Shopify Variant Price Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <h1>Variant Price Manager</h1>
+        <form method="POST">
+            {% for category, variants in variant_prices.items() %}
+            <h2>{{ category.capitalize() }}</h2>
+            <div class="variant-group">
+                {% for name, price in variants.items() %}
+                <div class="variant-row">
+                    <label>{{ name }}</label>
+                    <input type="number" step="0.01" name="{{ category }}_{{ name }}" value="{{ price }}">
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+            <button type="submit">Save Prices</button>
+        </form>
+        <form action="{{ url_for('update_shopify') }}">
+            <button type="submit" class="update-btn">Update Shopify</button>
+        </form>
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash">{{ messages[0] }}</div>
+        {% endif %}
+        {% endwith %}
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>

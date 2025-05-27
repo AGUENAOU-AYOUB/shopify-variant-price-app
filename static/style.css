@@ -1,0 +1,129 @@
+/* Global Styles */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+    margin: 0;
+    padding: 0;
+    color: #333;
+}
+
+.container {
+    max-width: 700px;
+    margin: 60px auto;
+    background: #ffffff;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    animation: fadeIn 0.5s ease;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #2c3e50;
+}
+
+h2 {
+    margin-top: 40px;
+    margin-bottom: 15px;
+    color: #007bff;
+    font-weight: 600;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 5px;
+}
+
+.variant-group {
+    margin-bottom: 25px;
+}
+
+.variant-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.variant-row label {
+    font-weight: 500;
+}
+
+.variant-row input {
+    width: 100px;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    transition: border-color 0.3s;
+}
+
+.variant-row input:focus {
+    border-color: #007bff;
+    outline: none;
+}
+
+button {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: linear-gradient(135deg, #007bff, #00b4db);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+button:hover {
+    background: linear-gradient(135deg, #0056b3, #0090b3);
+}
+
+button.update-btn {
+    background: linear-gradient(135deg, #28a745, #34d058);
+}
+
+button.update-btn:hover {
+    background: linear-gradient(135deg, #218838, #28a745);
+}
+
+.flash {
+    margin-top: 20px;
+    padding: 12px;
+    background: #d4edda;
+    color: #155724;
+    text-align: center;
+    border-radius: 6px;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .container {
+        padding: 30px 20px;
+    }
+
+    .variant-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .variant-row input {
+        width: 100%;
+        margin-top: 8px;
+    }
+}
