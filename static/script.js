@@ -1,2 +1,6 @@
-// Just a placeholder for future enhancements
-console.log("Variant Price Manager ready.");
+document.addEventListener("DOMContentLoaded", () => {
+    const alerts = document.querySelectorAll(".alert");
+    alerts.forEach(alert => {
+        setTimeout(() => alert.style.display = "none", 4000);
+    });
+});

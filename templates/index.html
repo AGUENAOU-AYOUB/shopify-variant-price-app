@@ -3,36 +3,42 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Shopify Variant Price Manager</title>
+    <title>Variant Price Management</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 
 <body>
+    <nav>
+        <a href="{{ url_for('index') }}">Variant Prices</a>
+        <a href="{{ url_for('adjust_prices') }}">Adjust Product Prices</a>
+    </nav>
+
     <div class="container">
-        <h1>Variant Price Manager</h1>
+        <h1>Variant Price Management</h1>
         <form method="POST">
             {% for category, variants in variant_prices.items() %}
             <h2>{{ category.capitalize() }}</h2>
-            <div class="variant-group">
-                {% for name, price in variants.items() %}
-                <div class="variant-row">
-                    <label>{{ name }}</label>
-                    <input type="number" step="0.01" name="{{ category }}_{{ name }}" value="{{ price }}">
+            <div class="grid">
+                {% for variant, price in variants.items() %}
+                <div class="card">
+                    <label>{{ variant }}</label>
+                    <input type="number" name="{{ category }}_{{ variant }}" value="{{ price }}" step="0.01">
                 </div>
                 {% endfor %}
             </div>
             {% endfor %}
-            <button type="submit">Save Prices</button>
+            <button type="submit" class="btn">Save Prices</button>
         </form>
-        <form action="{{ url_for('update_shopify') }}">
-            <button type="submit" class="update-btn">Update Shopify</button>
-        </form>
+
+        <a href="{{ url_for('update_variants') }}" class="btn update-btn">Update Variants in Shopify</a>
+
         {% with messages = get_flashed_messages() %}
         {% if messages %}
-        <div class="flash">{{ messages[0] }}</div>
+        <div class="alert">{{ messages[0] }}</div>
         {% endif %}
         {% endwith %}
     </div>
+
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Adjust Product Prices</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <nav>
+        <a href="{{ url_for('index') }}">Variant Prices</a>
+        <a href="{{ url_for('adjust_prices') }}">Adjust Product Prices</a>
+    </nav>
+
+    <div class="container">
+        <h1>Adjust Product Prices by Percentage</h1>
+        <form method="POST">
+            <input type="number" name="percentage" placeholder="Percentage Increase (%)" step="0.01" required>
+            <button type="submit" class="btn">Apply Increase</button>
+        </form>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="alert">{{ messages[0] }}</div>
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>
