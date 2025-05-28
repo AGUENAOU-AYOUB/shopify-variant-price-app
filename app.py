@@ -104,12 +104,21 @@ def get_base_price(product_id):
 def update_variant_price(variant_id, new_price):
     url = f"https://{SHOP_DOMAIN}/admin/api/{API_VERSION}/variants/{variant_id}.json"
     data = {"variant": {"id": variant_id, "price": new_price}}
-    response = requests.put(url, headers=HEADERS, json=data, timeout=10)
 
-    if response.status_code != 200:
-        print(f"Error updating variant {variant_id}: {response.status_code} - {response.text}")
+    while True:
+        response = requests.put(url, headers=HEADERS, json=data, timeout=10)
 
-    time.sleep(0.6)  # Prevent Shopify 429 API rate limit errors
+        if response.status_code == 429:
+            print(f"Rate limit hit for variant {variant_id}. Sleeping for 2 seconds...")
+            time.sleep(2)
+            continue  # Retry after sleep
+
+        if response.status_code != 200:
+            print(f"Error updating variant {variant_id}: {response.status_code} - {response.text}")
+
+        break  # Exit loop if no 429 error
+
+    time.sleep(0.5)  # Global rate limiter to stay under 2 req/s
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
