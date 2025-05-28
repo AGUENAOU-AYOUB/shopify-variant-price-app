@@ -52,6 +52,7 @@ def update_shopify():
     updated_count = 0
 
     while url:
+        print("Fetching products from Shopify...")  # Keep Render logs alive
         response = requests.get(url, headers=HEADERS, timeout=10)
         if response.status_code != 200:
             flash(f"API error: {response.status_code} - {response.text}", "error")
@@ -61,11 +62,13 @@ def update_shopify():
         products = [p for p in data.get("products", []) if "chaine_update" in p.get("tags", "").lower()]
 
         for product in products:
+            print(f"Processing product: {product['title']} (ID: {product['id']})")
             product_id = product["id"]
             tags = [t.strip().lower() for t in product.get("tags", "").split(",")]
             base_price = get_base_price(product_id)
 
             if base_price is None:
+                print(f"Base price not found for product ID {product_id}, skipping.")
                 continue
 
             if "bracelet" in tags:
@@ -73,6 +76,7 @@ def update_shopify():
             elif "collier" in tags:
                 table = variant_prices.get("collier", {})
             else:
+                print(f"No valid tag found for product {product['title']}, skipping.")
                 continue
 
             for variant in product["variants"]:
@@ -80,6 +84,7 @@ def update_shopify():
                 final_price = base_price + surcharge
                 update_variant_price(variant["id"], final_price)
                 updated_count += 1
+                print(f"✅ Updated variant {variant['id']} to {final_price} MAD")
 
         link_header = response.headers.get("Link")
         if link_header and 'rel="next"' in link_header:
@@ -89,12 +94,14 @@ def update_shopify():
             url = None
 
     flash(f"✅ Updated {updated_count} variants on Shopify.")
+    print(f"✅ Completed update: {updated_count} variants updated.")
     return redirect(url_for("index"))
 
 def get_base_price(product_id):
     url = f"https://{SHOP_DOMAIN}/admin/api/{API_VERSION}/products/{product_id}/metafields.json"
     response = requests.get(url, headers=HEADERS, timeout=10)
     if response.status_code != 200:
+        print(f"Error fetching base price for product {product_id}: {response.status_code}")
         return None
     for field in response.json().get("metafields", []):
         if field["key"] == "base_price":
@@ -109,16 +116,16 @@ def update_variant_price(variant_id, new_price):
         response = requests.put(url, headers=HEADERS, json=data, timeout=10)
 
         if response.status_code == 429:
-            print(f"Rate limit hit for variant {variant_id}. Sleeping for 2 seconds...")
+            print(f"⚠️ Rate limit hit for variant {variant_id}. Sleeping 2 seconds...")
             time.sleep(2)
             continue  # Retry after sleep
 
         if response.status_code != 200:
-            print(f"Error updating variant {variant_id}: {response.status_code} - {response.text}")
+            print(f"❌ Error updating variant {variant_id}: {response.status_code} - {response.text}")
 
         break  # Exit loop if no 429 error
 
-    time.sleep(0.5)  # Global rate limiter to stay under 2 req/s
+    time.sleep(0.5)  # Global rate limiter
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
