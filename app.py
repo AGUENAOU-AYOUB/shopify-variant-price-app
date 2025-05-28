@@ -1,25 +1,24 @@
+import os
 import json
 import requests
-import time
 from flask import Flask, render_template, request, redirect, url_for, flash
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
 
+app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "default_secret_key")
+
 SHOP_DOMAIN = os.getenv("SHOP_DOMAIN")
 API_TOKEN = os.getenv("API_TOKEN")
-SECRET_KEY = os.getenv("SECRET_KEY", "default_secret_key")
 API_VERSION = "2024-04"
 HEADERS = {
     "X-Shopify-Access-Token": API_TOKEN,
     "Content-Type": "application/json"
 }
 
-app = Flask(__name__)
-app.secret_key = SECRET_KEY
+GRAPHQL_URL = f"https://{SHOP_DOMAIN}/admin/api/{API_VERSION}/graphql.json"
 
-# Load variant prices from JSON
 def load_variant_prices():
     with open("variant_prices.json", "r") as file:
         return json.load(file)
@@ -48,84 +47,160 @@ def index():
 @app.route("/update_shopify")
 def update_shopify():
     variant_prices = load_variant_prices()
-    url = f"https://{SHOP_DOMAIN}/admin/api/{API_VERSION}/products.json?limit=250"
-    updated_count = 0
+    print("✅ Starting bulk price update...")
 
-    while url:
-        print("Fetching products from Shopify...")  # Keep Render logs alive
-        response = requests.get(url, headers=HEADERS, timeout=10)
-        if response.status_code != 200:
-            flash(f"API error: {response.status_code} - {response.text}", "error")
-            return redirect(url_for("index"))
-
-        data = response.json()
-        products = [p for p in data.get("products", []) if "chaine_update" in p.get("tags", "").lower()]
-
-        for product in products:
-            print(f"Processing product: {product['title']} (ID: {product['id']})")
-            product_id = product["id"]
-            tags = [t.strip().lower() for t in product.get("tags", "").split(",")]
-            base_price = get_base_price(product_id)
-
-            if base_price is None:
-                print(f"Base price not found for product ID {product_id}, skipping.")
-                continue
-
-            if "bracelet" in tags:
-                table = variant_prices.get("bracelet", {})
-            elif "collier" in tags:
-                table = variant_prices.get("collier", {})
-            else:
-                print(f"No valid tag found for product {product['title']}, skipping.")
-                continue
-
-            for variant in product["variants"]:
-                surcharge = table.get(variant["title"], 0)
-                final_price = base_price + surcharge
-                update_variant_price(variant["id"], final_price)
-                updated_count += 1
-                print(f"✅ Updated variant {variant['id']} to {final_price} MAD")
-
-        link_header = response.headers.get("Link")
-        if link_header and 'rel="next"' in link_header:
-            next_url = [part.split(";")[0].strip("<>") for part in link_header.split(",") if 'rel="next"' in part]
-            url = next_url[0] if next_url else None
-        else:
-            url = None
-
-    flash(f"✅ Updated {updated_count} variants on Shopify.")
-    print(f"✅ Completed update: {updated_count} variants updated.")
-    return redirect(url_for("index"))
-
-def get_base_price(product_id):
-    url = f"https://{SHOP_DOMAIN}/admin/api/{API_VERSION}/products/{product_id}/metafields.json"
-    response = requests.get(url, headers=HEADERS, timeout=10)
-    if response.status_code != 200:
-        print(f"Error fetching base price for product {product_id}: {response.status_code}")
-        return None
-    for field in response.json().get("metafields", []):
-        if field["key"] == "base_price":
-            return float(field["value"])
-    return None
-
-def update_variant_price(variant_id, new_price):
-    url = f"https://{SHOP_DOMAIN}/admin/api/{API_VERSION}/variants/{variant_id}.json"
-    data = {"variant": {"id": variant_id, "price": new_price}}
+    # 1️⃣ Fetch product and variant IDs
+    print("Fetching products from Shopify...")
+    product_variants = []
+    cursor = None
 
     while True:
-        response = requests.put(url, headers=HEADERS, json=data, timeout=10)
+        query = """
+        {
+            products(first: 50%s) {
+                edges {
+                    node {
+                        id
+                        title
+                        tags
+                        variants(first: 100) {
+                            edges {
+                                node {
+                                    id
+                                    title
+                                    product {
+                                        metafields(first: 5, namespace: "custom") {
+                                            edges {
+                                                node {
+                                                    key
+                                                    value
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    cursor
+                }
+                pageInfo {
+                    hasNextPage
+                }
+            }
+        }
+        """ % (f', after: "{cursor}"' if cursor else '')
 
-        if response.status_code == 429:
-            print(f"⚠️ Rate limit hit for variant {variant_id}. Sleeping 2 seconds...")
-            time.sleep(2)
-            continue  # Retry after sleep
+        response = requests.post(GRAPHQL_URL, headers=HEADERS, json={"query": query}, timeout=15)
+        data = response.json()
 
-        if response.status_code != 200:
-            print(f"❌ Error updating variant {variant_id}: {response.status_code} - {response.text}")
+        try:
+            edges = data["data"]["products"]["edges"]
+        except KeyError:
+            flash("❌ Error fetching products from Shopify.", "error")
+            return redirect(url_for("index"))
 
-        break  # Exit loop if no 429 error
+        for edge in edges:
+            product = edge["node"]
+            product_tags = [t.lower() for t in product["tags"]]
+            variants = product["variants"]["edges"]
 
-    time.sleep(0.5)  # Global rate limiter
+            base_price = None
+            for meta in variants[0]["node"]["product"]["metafields"]["edges"]:
+                if meta["node"]["key"] == "base_price":
+                    base_price = float(meta["node"]["value"])
+                    break
+
+            if base_price is None:
+                continue
+
+            if "bracelet" in product_tags:
+                table = variant_prices.get("bracelet", {})
+            elif "collier" in product_tags:
+                table = variant_prices.get("collier", {})
+            else:
+                continue
+
+            for v in variants:
+                variant = v["node"]
+                surcharge = table.get(variant["title"], 0)
+                final_price = base_price + surcharge
+                product_variants.append({
+                    "variantId": variant["id"],
+                    "price": round(final_price, 2)
+                })
+                print(f"Prepared {variant['id']} for {final_price} MAD")
+
+        if data["data"]["products"]["pageInfo"]["hasNextPage"]:
+            cursor = edges[-1]["cursor"]
+        else:
+            break
+
+    # 2️⃣ Build the JSONL file
+    jsonl_content = ""
+    for v in product_variants:
+        jsonl_content += json.dumps({
+            "id": v["variantId"],
+            "price": str(v["price"])
+        }) + "\n"
+
+    with open("bulk_update.jsonl", "w") as f:
+        f.write(jsonl_content)
+
+    # 3️⃣ Upload the JSONL to Shopify
+    mutation = """
+    mutation {
+        stagedUploadsCreate(input: [{resource: BULK_MUTATION_VARIABLES, filename: "bulk_update.jsonl", mimeType: "text/jsonl"}]) {
+            stagedTargets {
+                url
+                resourceUrl
+                parameters {
+                    name
+                    value
+                }
+            }
+            userErrors {
+                field
+                message
+            }
+        }
+    }
+    """
+    response = requests.post(GRAPHQL_URL, headers=HEADERS, json={"query": mutation}, timeout=15)
+    upload_data = response.json()["data"]["stagedUploadsCreate"]["stagedTargets"][0]
+
+    form_data = {p["name"]: p["value"] for p in upload_data["parameters"]}
+    files = {"file": open("bulk_update.jsonl", "rb")}
+
+    upload_response = requests.post(upload_data["url"], data=form_data, files=files, timeout=60)
+    if upload_response.status_code != 204:
+        flash("❌ Upload to Shopify failed.", "error")
+        return redirect(url_for("index"))
+
+    # 4️⃣ Start the bulk operation
+    mutation = """
+    mutation {
+      bulkOperationRunMutation(
+        mutation: "mutation call($input: BulkProductVariantInput!) { productVariantUpdate(input: $input) { userErrors { field message } } }"
+        stagedUploadPath: "%s"
+      ) {
+        bulkOperation {
+          id
+          status
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+    """ % upload_data["resourceUrl"]
+
+    response = requests.post(GRAPHQL_URL, headers=HEADERS, json={"query": mutation}, timeout=15)
+    result = response.json()
+    print(result)
+    flash("✅ Bulk price update started. Check Shopify Admin > Bulk Operations.", "success")
+    return redirect(url_for("index"))
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
