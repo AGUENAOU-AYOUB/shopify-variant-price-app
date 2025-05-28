@@ -60,7 +60,6 @@ def update_shopify():
             products(first: 50%s) {
                 edges {
                     node {
-                        id
                         title
                         tags
                         variants(first: 100) {
@@ -91,13 +90,25 @@ def update_shopify():
         }
         """ % (f', after: "{cursor}"' if cursor else '')
 
-        response = requests.post(GRAPHQL_URL, headers=HEADERS, json={"query": query}, timeout=15)
+        response = requests.post(GRAPHQL_URL, headers=HEADERS, json={"query": query}, timeout=30)
+
+        if response.status_code != 200:
+            print(f"❌ Shopify GraphQL Error: {response.status_code} - {response.text}")
+            flash("❌ Shopify API error. Please try again later.", "error")
+            return redirect(url_for("index"))
+
         data = response.json()
+
+        if "errors" in data:
+            print(f"❌ Shopify GraphQL Query Error: {data['errors']}")
+            flash(f"❌ Shopify GraphQL Error: {data['errors']}", "error")
+            return redirect(url_for("index"))
 
         try:
             edges = data["data"]["products"]["edges"]
         except KeyError:
-            flash("❌ Error fetching products from Shopify.", "error")
+            print(f"❌ Unexpected response: {data}")
+            flash("❌ Error fetching products from Shopify. Please check logs.", "error")
             return redirect(url_for("index"))
 
         for edge in edges:
@@ -136,6 +147,10 @@ def update_shopify():
         else:
             break
 
+    if not product_variants:
+        flash("❌ No variants found for update. Check product tags and metafields.", "error")
+        return redirect(url_for("index"))
+
     # 2️⃣ Build the JSONL file
     jsonl_content = ""
     for v in product_variants:
@@ -166,7 +181,7 @@ def update_shopify():
         }
     }
     """
-    response = requests.post(GRAPHQL_URL, headers=HEADERS, json={"query": mutation}, timeout=15)
+    response = requests.post(GRAPHQL_URL, headers=HEADERS, json={"query": mutation}, timeout=30)
     upload_data = response.json()["data"]["stagedUploadsCreate"]["stagedTargets"][0]
 
     form_data = {p["name"]: p["value"] for p in upload_data["parameters"]}
@@ -196,7 +211,7 @@ def update_shopify():
     }
     """ % upload_data["resourceUrl"]
 
-    response = requests.post(GRAPHQL_URL, headers=HEADERS, json={"query": mutation}, timeout=15)
+    response = requests.post(GRAPHQL_URL, headers=HEADERS, json={"query": mutation}, timeout=30)
     result = response.json()
     print(result)
     flash("✅ Bulk price update started. Check Shopify Admin > Bulk Operations.", "success")
