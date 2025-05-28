@@ -1,10 +1,7 @@
 import json
 import requests
+import time
 from flask import Flask, render_template, request, redirect, url_for, flash
-
-app = Flask(__name__)
-app.secret_key = 'your_secret_key'
-
 from dotenv import load_dotenv
 import os
 
@@ -12,11 +9,15 @@ load_dotenv()
 
 SHOP_DOMAIN = os.getenv("SHOP_DOMAIN")
 API_TOKEN = os.getenv("API_TOKEN")
+SECRET_KEY = os.getenv("SECRET_KEY", "default_secret_key")
 API_VERSION = "2024-04"
 HEADERS = {
     "X-Shopify-Access-Token": API_TOKEN,
     "Content-Type": "application/json"
 }
+
+app = Flask(__name__)
+app.secret_key = SECRET_KEY
 
 # Load variant prices from JSON
 def load_variant_prices():
@@ -44,8 +45,6 @@ def index():
         return redirect(url_for("index"))
     return render_template("index.html", variant_prices=variant_prices)
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
-
 @app.route("/update_shopify")
 def update_shopify():
     variant_prices = load_variant_prices()
@@ -53,7 +52,7 @@ def update_shopify():
     updated_count = 0
 
     while url:
-        response = requests.get(url, headers=HEADERS)
+        response = requests.get(url, headers=HEADERS, timeout=10)
         if response.status_code != 200:
             flash(f"API error: {response.status_code} - {response.text}", "error")
             return redirect(url_for("index"))
@@ -63,7 +62,6 @@ def update_shopify():
 
         for product in products:
             product_id = product["id"]
-            product_title = product["title"]
             tags = [t.strip().lower() for t in product.get("tags", "").split(",")]
             base_price = get_base_price(product_id)
 
@@ -93,10 +91,9 @@ def update_shopify():
     flash(f"✅ Updated {updated_count} variants on Shopify.")
     return redirect(url_for("index"))
 
-
 def get_base_price(product_id):
     url = f"https://{SHOP_DOMAIN}/admin/api/{API_VERSION}/products/{product_id}/metafields.json"
-    response = requests.get(url, headers=HEADERS)
+    response = requests.get(url, headers=HEADERS, timeout=10)
     if response.status_code != 200:
         return None
     for field in response.json().get("metafields", []):
@@ -107,10 +104,13 @@ def get_base_price(product_id):
 def update_variant_price(variant_id, new_price):
     url = f"https://{SHOP_DOMAIN}/admin/api/{API_VERSION}/variants/{variant_id}.json"
     data = {"variant": {"id": variant_id, "price": new_price}}
-    requests.put(url, headers=HEADERS, json=data)
+    response = requests.put(url, headers=HEADERS, json=data, timeout=10)
 
-import os
+    if response.status_code != 200:
+        print(f"Error updating variant {variant_id}: {response.status_code} - {response.text}")
+
+    time.sleep(0.6)  # Prevent Shopify 429 API rate limit errors
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Use Render's PORT or default to 5000
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
